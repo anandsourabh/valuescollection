@@ -1,4 +1,5 @@
 import os
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,6 +7,11 @@ from fastapi.openapi.utils import get_openapi
 
 from app.config import settings
 from app.routers import auth, users, campaigns, properties, assignments, delegations, submissions, reviews, signed_links, forms, audit
+from app.middleware import ExceptionHandlerMiddleware, RequestLoggingMiddleware, SecurityHeadersMiddleware, RateLimitMiddleware
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -57,6 +63,11 @@ def custom_openapi():
 
 app.openapi = custom_openapi
 
+# Add middleware (bottom to top execution order)
+app.add_middleware(RateLimitMiddleware, requests_per_minute=100)
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(ExceptionHandlerMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.frontend_url, "http://localhost:4200"],
