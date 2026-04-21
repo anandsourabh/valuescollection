@@ -257,3 +257,169 @@ CREATE INDEX idx_wf_vc_submission_history_submission_id ON wf_vc.submission_hist
 CREATE INDEX idx_wf_vc_attachments_submission_id ON wf_vc.attachments(submission_id);
 CREATE INDEX idx_wf_vc_signed_link_assignments_assignment_id ON wf_vc.signed_link_assignments(assignment_id);
 CREATE INDEX idx_wf_vc_deadline_extensions_entity_id ON wf_vc.deadline_extensions(entity_id);
+
+-- ==========================================
+-- ANALYTICS VIEWS
+-- ==========================================
+
+-- Campaign Performance Overview
+CREATE VIEW ux_vc.v_campaign_performance AS
+SELECT
+    c.id,
+    c.name,
+    c.status,
+    c.due_date,
+    c.created_at,
+    COUNT(DISTINCT a.id) as total_assignments,
+    COUNT(DISTINCT CASE WHEN a.status = 'completed' THEN a.id END) as completed_assignments,
+    COUNT(DISTINCT CASE WHEN a.status = 'pending' THEN a.id END) as pending_assignments,
+    COUNT(DISTINCT CASE WHEN a.status = 'in_progress' THEN a.id END) as in_progress_assignments,
+    ROUND(
+        (COUNT(DISTINCT CASE WHEN a.status = 'completed' THEN a.id END)::numeric /
+         NULLIF(COUNT(DISTINCT a.id), 0) * 100)::numeric, 2
+    ) as completion_percentage,
+    COUNT(DISTINCT CASE WHEN s.status = 'approved' THEN s.id END) as approved_submissions,
+    COUNT(DISTINCT CASE WHEN s.status = 'rejected' THEN s.id END) as rejected_submissions,
+    AVG(s.tiv_delta_pct) as avg_tiv_delta_pct,
+    COUNT(DISTINCT CASE WHEN s.material_change = TRUE THEN s.id END) as material_changes_count
+FROM ux_vc.campaigns c
+LEFT JOIN ux_vc.assignments a ON c.id = a.campaign_id
+LEFT JOIN ux_vc.submissions s ON a.id = s.assignment_id
+GROUP BY c.id, c.name, c.status, c.due_date, c.created_at;
+
+-- User Performance Metrics
+CREATE VIEW ux_vc.v_user_performance AS
+SELECT
+    u.id,
+    u.name,
+    u.email,
+    COUNT(DISTINCT a.id) as total_assignments,
+    COUNT(DISTINCT CASE WHEN a.status = 'completed' THEN a.id END) as completed_assignments,
+    COUNT(DISTINCT CASE WHEN a.status = 'pending' THEN a.id END) as pending_assignments,
+    COUNT(DISTINCT CASE WHEN s.status = 'submitted' THEN s.id END) as submitted_count,
+    COUNT(DISTINCT CASE WHEN s.status = 'approved' THEN s.id END) as approved_count,
+    COUNT(DISTINCT CASE WHEN s.status = 'rejected' THEN s.id END) as rejected_count,
+    ROUND(
+        AVG(CASE WHEN s.tiv_delta_pct IS NOT NULL THEN s.tiv_delta_pct ELSE 0 END)::numeric, 2
+    ) as avg_tiv_change_pct,
+    MAX(s.submitted_at) as last_submission_date
+FROM ux_vc.users u
+LEFT JOIN ux_vc.assignments a ON u.id = a.primary_assignee_id
+LEFT JOIN ux_vc.submissions s ON a.id = s.assignment_id
+GROUP BY u.id, u.name, u.email;
+
+-- SLA Compliance View
+CREATE VIEW ux_vc.v_sla_compliance AS
+SELECT
+    c.id as campaign_id,
+    c.name as campaign_name,
+    c.due_date,
+    c.sla_days,
+    COUNT(DISTINCT a.id) as total_assignments,
+    COUNT(DISTINCT CASE
+        WHEN s.submitted_at IS NOT NULL AND
+             (s.submitted_at - a.assigned_at) <= (c.sla_days || ' days')::interval
+        THEN a.id
+    END) as sla_compliant_submissions,
+    COUNT(DISTINCT CASE
+        WHEN s.submitted_at IS NOT NULL AND
+             (s.submitted_at - a.assigned_at) > (c.sla_days || ' days')::interval
+        THEN a.id
+    END) as sla_breached_submissions,
+    ROUND(
+        (COUNT(DISTINCT CASE
+            WHEN s.submitted_at IS NOT NULL AND
+                 (s.submitted_at - a.assigned_at) <= (c.sla_days || ' days')::interval
+            THEN a.id
+        END)::numeric /
+         NULLIF(COUNT(DISTINCT CASE WHEN s.submitted_at IS NOT NULL THEN a.id END), 0) * 100)::numeric, 2
+    ) as sla_compliance_percentage
+FROM ux_vc.campaigns c
+LEFT JOIN ux_vc.assignments a ON c.id = a.campaign_id
+LEFT JOIN ux_vc.submissions s ON a.id = s.assignment_id
+GROUP BY c.id, c.name, c.due_date, c.sla_days;
+
+-- Review Queue Status
+CREATE VIEW ux_vc.v_review_queue_status AS
+SELECT
+    'pending' as status,
+    COUNT(DISTINCT s.id) as count,
+    COUNT(DISTINCT CASE WHEN s.material_change = TRUE THEN s.id END) as material_changes,
+    ROUND(AVG(s.tiv_delta_pct)::numeric, 2) as avg_tiv_delta_pct
+FROM ux_vc.submissions s
+WHERE s.status = 'submitted'
+
+UNION ALL
+
+SELECT
+    'approved' as status,
+    COUNT(DISTINCT s.id) as count,
+    COUNT(DISTINCT CASE WHEN s.material_change = TRUE THEN s.id END) as material_changes,
+    ROUND(AVG(s.tiv_delta_pct)::numeric, 2) as avg_tiv_delta_pct
+FROM ux_vc.submissions s
+WHERE s.status = 'approved'
+
+UNION ALL
+
+SELECT
+    'rejected' as status,
+    COUNT(DISTINCT s.id) as count,
+    COUNT(DISTINCT CASE WHEN s.material_change = TRUE THEN s.id END) as material_changes,
+    ROUND(AVG(s.tiv_delta_pct)::numeric, 2) as avg_tiv_delta_pct
+FROM ux_vc.submissions s
+WHERE s.status = 'rejected';
+
+-- Portfolio Summary
+CREATE VIEW ux_vc.v_portfolio_summary AS
+SELECT
+    p.id,
+    p.name,
+    COUNT(DISTINCT pr.id) as property_count,
+    SUM(pr.prior_tiv) as total_prior_tiv,
+    COUNT(DISTINCT CASE WHEN s.status = 'approved' THEN a.id END) as completed_assignments,
+    COUNT(DISTINCT a.id) as total_assignments,
+    ROUND(
+        (COUNT(DISTINCT CASE WHEN s.status = 'approved' THEN a.id END)::numeric /
+         NULLIF(COUNT(DISTINCT a.id), 0) * 100)::numeric, 2
+    ) as completion_percentage
+FROM ux_vc.portfolios p
+LEFT JOIN ux_vc.properties pr ON p.id = pr.portfolio_id
+LEFT JOIN wf_vc.campaign_portfolios cp ON p.id = cp.portfolio_id
+LEFT JOIN ux_vc.assignments a ON cp.campaign_id = a.campaign_id
+LEFT JOIN ux_vc.submissions s ON a.id = s.assignment_id
+GROUP BY p.id, p.name;
+
+-- Delegation Impact Analysis
+CREATE VIEW ux_vc.v_delegation_impact AS
+SELECT
+    d.delegator_id,
+    u1.name as delegator_name,
+    d.delegate_id,
+    u2.name as delegate_name,
+    d.delegation_type,
+    d.start_date,
+    d.end_date,
+    COUNT(DISTINCT a.id) as assignments_under_delegation,
+    COUNT(DISTINCT CASE WHEN a.status = 'completed' THEN a.id END) as completed_under_delegation,
+    COUNT(DISTINCT s.id) as submissions_from_delegation
+FROM ux_vc.delegations d
+LEFT JOIN ux_vc.users u1 ON d.delegator_id = u1.id
+LEFT JOIN ux_vc.users u2 ON d.delegate_id = u2.id
+LEFT JOIN ux_vc.assignments a ON d.delegate_id = a.primary_assignee_id
+LEFT JOIN ux_vc.submissions s ON a.id = s.assignment_id
+WHERE d.is_active = TRUE
+GROUP BY d.id, d.delegator_id, u1.name, d.delegate_id, u2.name, d.delegation_type, d.start_date, d.end_date;
+
+-- Daily Submission Trends
+CREATE VIEW ux_vc.v_submission_trends AS
+SELECT
+    DATE(s.submitted_at) as submission_date,
+    COUNT(DISTINCT s.id) as submissions_count,
+    COUNT(DISTINCT CASE WHEN s.status = 'approved' THEN s.id END) as approved_count,
+    COUNT(DISTINCT CASE WHEN s.status = 'rejected' THEN s.id END) as rejected_count,
+    AVG(s.tiv) as avg_tiv_submitted,
+    AVG(s.tiv_delta_pct) as avg_tiv_change_pct
+FROM ux_vc.submissions s
+WHERE s.submitted_at IS NOT NULL
+GROUP BY DATE(s.submitted_at)
+ORDER BY submission_date DESC;
