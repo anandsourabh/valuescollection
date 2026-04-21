@@ -1,0 +1,130 @@
+Value Collection Tool for Blue[i] Property
+Background
+There is a need for an industry leading value collection tool for a property risk management application, Blue[i] property. The tool should let admins create data-collection campaigns tied to property portfolios, assign users/internal or external contributors, and generate forms capturing COPE/Exposure values and other property attributes. Contributors can complete the forms either inapp (for authenticated users) or via signed links (for external users), with save-as-draft and submit flows. A reviewer then approves/rejects submissions. The workflow is governed by SLAs with automated reminders and escalation.
+Competitive signals from market leaders (Aon, Origami, etc.) indicate must-haves such as: exposure values collection at scale, campaign progress tracking, configurable reminders and templates, mobile/offline capture, inapp analytics/dashboards, and role-based access.
+This spec aims to define detailed requirements for such a system
+Requirements
+Assumptions & Constraints (confirmed)
+Embeds into existing Angular app (micro-frontend or iFrame + postMessage; shared theming, routing handoff).
+Internal users authenticated via SAML (IdP-initiated and SP-initiated SSO supported).
+Full audit trails required; data lineage handled by an existing subsystem — this tool will emit events + metadata to it.
+MoSCoW Requirements
+Must Have
+Campaign Management
+Create/edit/archive campaigns with name, owner, portfolio scope (properties, regions), due dates, SLA (e.g., T+14 days), and timezone.
+Assignment engine: assign tasks to internal users or external contacts; bulk import (CSV/API) and rule-based assignment.
+Progress tracking (Not Started/In Progress/Submitted/Under Review/Approved/Rejected/Expired) with counts & percentages.
+Form Builder (Property/COPE/Exposure)
+Versioned, schema-driven forms: property identity, location, construction/occupancy/protection/exposure (COPE), values (TIV, BI, contents), risk improvement status, attachments (photos, docs), comments.
+Widgets: text/number/currency, dates, selects, multi-selects, file upload, address with geocoding, conditional sections, repeating groups (per-building), calculated fields (e.g., TIV sum), server-side validations.
+Collection Experiences
+Inapp authenticated flow for internal users.
+Signed URL external flow with expiring, single-entity or multi-entity access; passcode & IP allowlist.
+Save as Draft & Submit for both flows; client-side autosave.
+Review Workflow
+Per-submission Approve/Reject with reviewer comments; state transitions logged; reopen on reject.
+Multi-level optional approvals (e.g., analyst → manager) configured at campaign level.
+SLA & Reminders
+SLA timers per assignment; automated email reminders and in-app notifications: initial invite, N-day reminders, escalation to manager on breach, final notice before expiry.
+Reminder templates with merge fields; per-campaign schedule.
+RBAC & Permissions
+Roles: Admin, Campaign Owner, Reviewer, Contributor (internal), External Contributor (link), Auditor (read-only).
+Scope by portfolio/region/business unit.
+Auditability & Lineage Hooks
+Immutable audit log for create/update/submit/review, including who/when/where (IP/User-Agent), old→new diffs, and attachment hashes.
+Event stream (e.g., SubmissionCreated, FieldChanged, SubmissionSubmitted, SubmissionApproved) to publish lineage metadata to the existing system.
+Reporting & Dashboards
+Campaign dashboards (completion %, SLA breaches, overdue counts); export CSV/Excel; API for BI.
+Security & Compliance
+SAML SSO, signed URLs with exp/nonce, TLS 1.2+, AES-256 at rest, OWASP ASVS L2, rate limiting, CSRF protection, file AV scanning, PII redaction controls.
+Internationalization & Accessibility
+i18n-ready labels & templates; WCAG 2.1 AA conformance for web.
+Should Have
+Dynamic Targeting: auto-select form variant based on property attributes (e.g., occupancy type, TIV bands).
+Data Quality Controls: cross-field rules, outlier detection (z-score/IQR), required evidence for material changes.
+Integrations: property master data read API; push approved values to downstream modeling systems; webhooks for lifecycle events.
+Mobile-friendly external flow with camera/photo EXIF capture.
+Delegation & Out-of-Office for assignees.
+Bulk Actions: bulk reminders, bulk reassign, bulk approve (when policy allows).
+Could Have
+Offline capture for field teams (PWA cache with conflict resolution).
+Geospatial: map-based property picker; hazard overlays.
+Standards alignment: import/export to Open Exposure Data (OED) format.
+AI assists: auto-suggest values from prior years; anomaly hints; OCR for documents.
+Won’t Have (MVP)
+Native mobile apps (web-first), unless justified by adoption.
+Non-Functional Requirements (NFRs)
+Performance: <300ms p95 read of forms, <1.5s p95 submit under 95th percentile load; concurrency 1k active contributors/campaign.
+Scalability: horizontally scalable stateless services; object storage for files; CDN for assets.
+Availability: 99.9% monthly SLO for collection endpoints during campaign windows.
+Observability: structured logs, traces, SLIs/SLOs for reminder latency & submit success.
+Extensibility: form schema as JSON; versioned; migrations supported.
+Maintainability: 80% unit test coverage for core validators; contract tests for webhooks.
+
+Method
+High-Level Architecture
+Frontend: Micro-frontend that plugs into your Angular host via Module Federation or Angular Elements (Web Component). Provides two shells:
+Internal App Shell (authenticated via SAML SSO through your existing session): full-featured campaign admin, reviewer console, dashboards.
+External Link Shell (standalone, minimal chrome): signed URL access, draft/save/submit, attachments, basic validation.
+Backend Services (suggested stack, but tech-agnostic):
+Collection API (NestJS/Node or Java/Spring): campaign/task/form/submission endpoints, JSON Schema validation, RBAC.
+Workflow & Reminders: SLA timers, escalations, notification templates, queue workers (e.g., BullMQ/SQS workers).
+Audit & Lineage Bridge: immutable audit log + event publisher to your lineage system.
+File Service: presigned upload/download (S3-compatible), AV scanning, hashing.
+Data Stores: Postgres (OLTP), Redis (cache & queues), S3-compatible object store (attachments, large diffs), optional Kafka/SNS for events.
+Integration Points: SAML via your existing IdP; property master read API; downstream exposure/renewal systems via webhooks or batch export.
+Component Diagram
+
+API Surface (selected)
+POST /campaigns create; GET /campaigns/:id read; PATCH /campaigns/:id update; POST /campaigns/:id/activate.
+POST /campaigns/:id/assignments:bulk (CSV or JSON rules) → creates assignment rows.
+GET /assignments?campaignId=...&status=... (paginated, role-scoped).
+GET /assignments/:id/link (admin) → issue signed link.
+GET /forms/:schemaVersionId → JSON Schema + UI schema.
+PUT /submissions/:assignmentId (draft save, idempotent) ; POST /submissions/:assignmentId/submit.
+POST /reviews/:submissionId/decision (approve/reject/comment/reopen).
+GET /dashboards/campaigns/:id → progress, SLA, breach counts.
+Webhooks: submission.submitted, submission.approved, assignment.overdue.
+Validation & Calculations
+JSON Schema for client/server validation.
+Server-side rules: cross-field constraints (e.g., building_area >= sum(unit_area)), currency normalization, totals (TIV, contents, BI), and OED-aligned field mapping.
+Signed URL Design
+Token: base64url(assignment_id | exp | jti | hmac_sha256(secret, assignment_id||exp||jti)).
+Validate IP allowlist (optional), expiry, replay via jti store in Redis; increment used_count.
+SLA & Reminder Algorithm
+On assignment create: compute sla_due_at = start_at + sla_days.
+Persist reminder_schedule per campaign.
+Scheduler runs minutely; finds assignments where now() matches schedule boundaries relative to due date; enqueues notification jobs.
+On breach (now() > sla_due_at and status not in terminal), escalate per policy and update escalation_level.
+
+Review Workflow (sequence)
+
+RBAC Model
+Admin: all campaigns within scope; manage templates/schedules.
+Owner: manage own campaigns; assignments; issue links.
+Reviewer: read submissions; issue decisions.
+Contributor (internal): edit/submit assigned properties.
+External: edit/submit via signed link only.
+Auditor: read-only, access to audit trail exports.
+Observability & Audit
+Correlate every API request with trace_id; include in audit_log rows.
+Store field-level diffs (JSON Patch) in audit_log.diff; large payloads in S3.
+Emit lineage events after: create/update/submit/approve with full context (campaign, property, schema version, actor, timestamps, hashes).
+Frontend Integration Details
+Angular host lazy-loads the MFE via Module Federation (@angular-architects/module-federation).
+Provide custom events (postMessage) for navigation and SSO session checks.
+Form renderer powered by JSON Schema (e.g., Angular JSON Schema Form or custom renderer) with autosave (debounced) and attachment uploader using presigned URLs.
+Success Criteria & KPIs
+Completion: ≥95% assignments completed by due date; overdue rate <5%.
+Cycle Time: median time to submit ≤ 7 days; p95 reminder latency < 5 minutes.
+Quality: rejection rate <10%; <1% validation failures on final submit.
+Auditability: 100% actions logged with actor, IP, UA; audit export within SLA.
+Performance: p95 read <300ms, submit <1.5s during campaign peaks.
+Monitoring & Feedback Loop
+Dashboards: campaign progress, SLA breaches, reminder effectiveness.
+Quarterly review of schema fields vs. downstream model needs; track mapping drift (esp. OED alignment if enabled).
+Support runbook metrics: email deliverability, AV scan failures, link-abuse detection.
+Post-Launch Validation
+Shadow-run a campaign versus previous spreadsheet process; compare completion time and error rate.
+Conduct reviewer calibration sessions to standardize approve/reject thresholds.
+
