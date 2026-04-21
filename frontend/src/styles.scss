@@ -1,0 +1,59 @@
+@import 'styles/tokens';
+@import 'primeicons/primeicons.css';
+
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap');
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  background: var(--bg);
+  color: var(--ink-2);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  color: var(--ink-1);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+h1 { font-size: 28px; letter-spacing: -0.02em; }
+h2 { font-size: 20px; }
+h3 { font-size: 16px; }
+h4 { font-size: 14px; }
+p  { margin: 0; }
+
+// Status badge
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  height: 22px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+
+  &.not_started  { background: var(--surface-3);    color: var(--ink-3); }
+  &.in_progress  { background: var(--accent-soft);  color: var(--accent-ink); }
+  &.submitted    { background: #F0E7FB;              color: #5B21B6; }
+  &.under_review { background: var(--warning-soft); color: var(--warning); }
+  &.approved     { background: var(--positive-soft); color: var(--positive); }
+  &.rejected     { background: var(--danger-soft);  color: var(--danger); }
+}
+
+// Layout
+.page-pad { padding: 24px 28px; overflow: auto; height: 100%; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); }
+.row  { display: flex; gap: 12px; align-items: center; }
+
+// Scrollbar
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 10px; border: 2px solid var(--bg); }

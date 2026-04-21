@@ -1,0 +1,41 @@
+// Design tokens — mirrors the prototype's tokens.css
+:root {
+  --bg: #FAFAF7;
+  --surface: #FFFFFF;
+  --surface-2: #F5F4EE;
+  --surface-3: #EDEBE3;
+  --border: #E5E2D8;
+  --border-strong: #D4D0C3;
+  --divider: #ECEAE0;
+
+  --ink-1: #0E1116;
+  --ink-2: #1F2430;
+  --ink-3: #4A5160;
+  --ink-4: #7B8192;
+  --ink-5: #A9ADBA;
+
+  --accent: #2E4BFF;
+  --accent-hover: #1E3AE8;
+  --accent-soft: #EEF1FF;
+  --accent-ink: #11228A;
+
+  --positive: #1B8454;
+  --positive-soft: #E5F4ED;
+  --warning: #B45309;
+  --warning-soft: #FDF3E1;
+  --danger: #B42318;
+  --danger-soft: #FDECEB;
+
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+  --r-2xl: 24px;
+
+  --shadow-xs: 0 1px 2px rgba(15, 20, 30, 0.04);
+  --shadow-sm: 0 1px 2px rgba(15, 20, 30, 0.05), 0 1px 3px rgba(15, 20, 30, 0.06);
+  --shadow-md: 0 4px 12px rgba(15, 20, 30, 0.06), 0 2px 4px rgba(15, 20, 30, 0.04);
+  --shadow-lg: 0 12px 32px rgba(15, 20, 30, 0.08), 0 4px 8px rgba(15, 20, 30, 0.04);
+  --shadow-focus: 0 0 0 3px rgba(46, 75, 255, 0.15);
+}
