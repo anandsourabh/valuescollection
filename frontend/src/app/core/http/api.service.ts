@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { environment } from '../../environments/environment';
+import { environment } from '../../../environments/environment';
 import {
   Campaign, Assignment, User, Portfolio, Property, Submission,
   Review, Delegation, SignedLink, AuditEvent, CampaignStats, ReviewQueueItem,
@@ -30,7 +30,7 @@ export class ApiService {
   activateCampaign(id: string): Observable<Campaign> {
     return this.http.post<Campaign>(`${API}/campaigns/${id}/activate`, {});
   }
-  extendCampaignDeadline(id: string, payload: { days: number; reason_code: string; reason_note?: string; notify_assignees: boolean }): Observable<Campaign> {
+  extendCampaignDeadline(id: string, payload: { new_due_date?: string; days?: number; reason_code: string; notes?: string; notify_assignees?: boolean }): Observable<Campaign> {
     return this.http.post<Campaign>(`${API}/campaigns/${id}/extend-deadline`, payload);
   }
   getCampaignStats(id: string): Observable<CampaignStats> {
@@ -49,9 +49,16 @@ export class ApiService {
   }
 
   // ── Assignments ─────────────────────────────────────────────
+  getAssignments(campaignId?: string, status?: string): Observable<Assignment[]> {
+    let params = new HttpParams();
+    if (status) params = params.set('status', status);
+    if (campaignId) {
+      return this.http.get<Assignment[]>(`${API}/campaigns/${campaignId}/assignments`, { params });
+    }
+    return this.http.get<Assignment[]>(`${API}/assignments`, { params });
+  }
   getCampaignAssignments(campaignId: string, status?: string): Observable<Assignment[]> {
-    const params = status ? new HttpParams().set('status', status) : undefined;
-    return this.http.get<Assignment[]>(`${API}/campaigns/${campaignId}/assignments`, { params });
+    return this.getAssignments(campaignId, status);
   }
   createAssignment(campaignId: string, data: Partial<Assignment> & { delegate_l1_id?: string; delegate_l2_id?: string }): Observable<Assignment> {
     return this.http.post<Assignment>(`${API}/campaigns/${campaignId}/assignments`, data);
@@ -59,11 +66,17 @@ export class ApiService {
   updateAssignment(id: string, data: Partial<Assignment>): Observable<Assignment> {
     return this.http.put<Assignment>(`${API}/assignments/${id}`, data);
   }
-  bulkAction(action: string, ids: string[], payload: Record<string, unknown> = {}): Observable<{ detail: string }> {
-    return this.http.post<{ detail: string }>(`${API}/assignments/bulk-action`, { action, ids, payload });
+  bulkActionAssignments(payload: { action: string; assignment_ids: string[]; [key: string]: unknown }): Observable<{ detail: string }> {
+    return this.http.post<{ detail: string }>(`${API}/assignments/bulk-action`, payload);
   }
-  extendAssignmentDeadline(id: string, payload: { days: number; reason_code: string; notify_assignees: boolean }): Observable<Assignment> {
+  bulkAction(action: string, ids: string[], payload: Record<string, unknown> = {}): Observable<{ detail: string }> {
+    return this.bulkActionAssignments({ action, assignment_ids: ids, ...payload });
+  }
+  extendAssignmentDeadline(id: string, payload: { days?: number; new_due_date?: string; reason_code: string; notify_assignees?: boolean }): Observable<Assignment> {
     return this.http.post<Assignment>(`${API}/assignments/${id}/extend-deadline`, payload);
+  }
+  getExternalAssignments(): Observable<Assignment[]> {
+    return this.http.get<Assignment[]>(`${API}/ext/assignments`);
   }
 
   // ── Delegations ─────────────────────────────────────────────
@@ -82,6 +95,13 @@ export class ApiService {
   setUserOOO(userId: string, data: { delegate_id: string; ooo_start: string; ooo_end: string; reason?: string }): Observable<Delegation> {
     return this.http.post<Delegation>(`${API}/delegations/users/${userId}/ooo`, data);
   }
+  setOooDelegation(userId: string, data: { delegate_to_id: string; ooo_start: string; ooo_end: string }): Observable<Delegation> {
+    return this.http.post<Delegation>(`${API}/delegations/users/${userId}/ooo`, {
+      delegate_id: data.delegate_to_id,
+      ooo_start: data.ooo_start,
+      ooo_end: data.ooo_end,
+    });
+  }
 
   // ── Submissions ─────────────────────────────────────────────
   getSubmission(assignmentId: string): Observable<Submission> {
@@ -92,6 +112,22 @@ export class ApiService {
   }
   submitSubmission(assignmentId: string): Observable<Submission> {
     return this.http.post<Submission>(`${API}/assignments/${assignmentId}/submission/submit`, {});
+  }
+
+  // ── Form Schema ─────────────────────────────────────────────
+  getFormSchema(campaignId: string): Observable<any> {
+    return this.http.get<any>(`${API}/campaigns/${campaignId}/form-schema`);
+  }
+  saveFormSchema(campaignId: string, schema: Record<string, unknown>): Observable<any> {
+    return this.http.put<any>(`${API}/campaigns/${campaignId}/form-schema`, schema);
+  }
+  publishFormSchema(campaignId: string): Observable<any> {
+    return this.http.post<any>(`${API}/campaigns/${campaignId}/form-schema/publish`, {});
+  }
+
+  // ── Auth (external) ──────────────────────────────────────────
+  verifyExternalToken(data: { token: string; passcode: string }): Observable<{ access_token: string }> {
+    return this.http.post<{ access_token: string }>(`${API}/auth/external-verify`, data);
   }
 
   // ── Reviews ─────────────────────────────────────────────────

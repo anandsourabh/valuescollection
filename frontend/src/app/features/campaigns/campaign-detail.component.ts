@@ -182,7 +182,7 @@ type Tab = 'assignments' | 'progress' | 'reminders' | 'audit' | 'delegations';
                 <div class="reminder-row">
                   <i class="pi pi-bell reminder-icon"></i>
                   <div class="reminder-info">
-                    <div class="reminder-type">{{ r.reminder_type.replace(/_/g, ' ') }}</div>
+                    <div class="reminder-type">{{ formatAction(r.reminder_type) }}</div>
                     <div class="reminder-when">Scheduled {{ formatDate(r.scheduled_for) }}</div>
                   </div>
                   <span class="badge" [class]="'badge-reminder-' + r.status">{{ r.status }}</span>

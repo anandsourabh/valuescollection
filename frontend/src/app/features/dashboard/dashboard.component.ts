@@ -12,7 +12,7 @@ import { Campaign } from '../../core/models/models';
     <div class="page-pad">
       <div class="page-header">
         <div>
-          <h1>Good morning, {{ auth.currentUser()?.name?.split(' ')[0] || 'there' }}</h1>
+          <h1>Good morning, {{ firstName() }}</h1>
           <p class="subtitle">{{ activeCampaigns.length }} active campaign(s) · {{ totalAssignments }} assignments in flight</p>
         </div>
         <div class="header-actions">
@@ -110,6 +110,12 @@ export class DashboardComponent implements OnInit {
 
   campaigns: Campaign[] = [];
   loading = true;
+
+  firstName(): string {
+    const name = this.auth.currentUser()?.name;
+    if (!name) return 'there';
+    return name.split(' ')[0] || 'there';
+  }
 
   get activeCampaigns() { return this.campaigns.filter(c => c.status === 'active'); }
   get totalAssignments() { return this.activeCampaigns.reduce((sum) => sum + 142, 0); }

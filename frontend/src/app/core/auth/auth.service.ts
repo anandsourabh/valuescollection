@@ -1,10 +1,10 @@
 import { Injectable, signal, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { tap, map } from 'rxjs/operators';
+import { tap, switchMap } from 'rxjs/operators';
 import { Observable } from 'rxjs';
 import { User } from '../models/models';
-import { environment } from '../../environments/environment';
+import { environment } from '../../../environments/environment';
 
 interface TokenResponse {
   access_token: string;
@@ -35,8 +35,8 @@ export class AuthService {
         localStorage.setItem(this.TOKEN_KEY, res.access_token);
         localStorage.setItem(this.REFRESH_KEY, res.refresh_token);
       }),
-      map(() => this.loadCurrentUser()),
-    ) as Observable<User>;
+      switchMap(() => this.loadCurrentUser()),
+    );
   }
 
   loadCurrentUser(): Observable<User> {
